@@ -17,7 +17,7 @@ Content Delivery Network (CDN)
 Latest version can be linked into your project using the following in the head section of your project:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic/HypeActionEvents.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeActionEvents/HypeActionEvents.min.js"></script>
 ```
 Optionally you can also link a SRI version or specific releases. 
 Read more about that on the JsDelivr (CDN) page for this extension at https://www.jsdelivr.com/package/gh/worldoptimizer/HypeActionEvents
