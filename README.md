@@ -4,7 +4,7 @@
 
 <sup>The cover artwork is not hosted in this repository and &copy;opyrighted by Max Ziebell</sup>
 
-Extension that offers code execution based on events and can be declared by data attributes. Furthermore, it offers a code execution through the Custom Behavior interface.
+Extension that offers code execution based on events and can be declared by data attributes. Furthermore, it offers code execution through the Custom Behavior interface.
 
 
 ## Documentation
