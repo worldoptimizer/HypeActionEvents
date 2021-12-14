@@ -1,0 +1,9 @@
+{
+    "name": "Hype Action Events",
+    "description": "Extension that offers code execution based on events and can be declared by data attributes. Furthermore, it offers code execution through the Custom Behavior interface",
+    "author": "Max Ziebell",
+    "main":	"HypeActionHelper.js",
+    "license": "MIT",
+    "version": "1.0.0",
+    "dependencies": {}
+}
