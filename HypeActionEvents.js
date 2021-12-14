@@ -157,7 +157,6 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 				);
 			
 				if (getDefault('LegacyMode')) {
-					console.log("Legacy Mode enabled");
 					// Hype Functions bound to current element and event in context
 					var boundHypeFunctions = {};
 					var fnc = hypeDocument.functions();
