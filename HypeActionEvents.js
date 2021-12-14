@@ -1,11 +1,12 @@
 /*!
-Hype Action Events 1.0.0
+Hype Action Events 1.0.1
 copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
 * Version-History
 * 1.0.0	Initial release under MIT-license
+* 1.0.1 Proxy is default (LegacyMode available), firing HypeActionEvents on HypeDocumentLoad and refactored variables
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -26,7 +27,10 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 		debug: false,
 
-		// strict expressions (prevent any context)
+		// LegacyMode supports IE, but has less "smart" capabilities
+		LegacyMode: false,
+
+		// strict expressions (prevent any context, even more harsh then LegacyMode)
 		StrictMode: false,
 
 		// flags for code context
@@ -86,6 +90,33 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 	function HypeDocumentLoad (hypeDocument, element, event) {
 		
+		// fetch Hype Document element for event listener
+		var hypeDocElm = document.getElementById(hypeDocument.documentId());
+
+		/* setup firing of user interaction events based on bubbling to Hype Document root */
+		var DOMEventTypes = Array.prototype.concat.apply([], [
+			getDefault('MouseEvents'),
+			getDefault('TouchEvents'),
+			getDefault('KeyboardEvents'),
+			getDefault('FormEvents'),
+		]);
+
+		DOMEventTypes.filter(function(DOMEventType){
+
+			hypeDocElm.addEventListener(DOMEventType, function(event){
+				var element = event.target;
+				var type = event.type;
+
+				if(element && type){
+					var code = element.getAttribute('data-'+type+'-action');
+					if (code) hypeDocument.triggerAction (code, {
+						element: element,
+						event:  event
+					});
+				}
+			});
+		});
+
 		/**
 		 * hypeDocument.getSymbolInstance 1.1 (by Stephen, modified by Max Ziebell)
 		 * @param {HTMLDivElement} element The starting point for the search
@@ -100,6 +131,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			return symbolInstance;
 		}
 		
+
 		hypeDocument.triggerAction = function (code, options) {
 			if (!code) return;
 			options = options || {};
@@ -111,79 +143,84 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 				event: {}
 			}, options);
 
-			var $context;
+			var $context, $pcontext;
 			var strictMode = options.strictMode || getDefault('StrictMode');
 
 			if (!strictMode) {
-				$context={}
-
-				// custom data in context
-				if (getDefault('ContextCustomData')) {
-					$context = Object.assign($context, hypeDocument.customData);
-				}
-
-				// hypeDocument API in context
-				if (getDefault('ContextHypeDocument')) {
-					$context = Object.assign($context, hypeDocument);
-				}
-
-				// symbolInstnace API in context (if possible, first parent)
-				if (getDefault('ContextSymbolInstance')) {
-					$context = Object.assign($context, options.symbolInstance);
-				}
-
-				// Hype Functions bound to current element and event in context
-				if (getDefault('ContextHypeFunctions')) {
-					var contextHypeFunctions = {} 
-					var namesHypeFunctions = Object.keys(hypeDocument.functions());
-					if(namesHypeFunctions) namesHypeFunctions.forEach(function(name){
-						contextHypeFunctions[name] = function(){
-							hypeDocument.functions()[name](hypeDocument, options.element, options.event)
-						}
+				$context = Object.assign(
+					// start empty
+					{}, 
+					// hypeDocument API in context
+					hypeDocument,
+					// symbolInstnace API in context (if possible, first parent)
+					options.symbolInstance
+				);
+			
+				if (getDefault('LegacyMode')) {
+					console.log("Legacy Mode enabled");
+					// Hype Functions bound to current element and event in context
+					var boundHypeFunctions = {};
+					var fnc = hypeDocument.functions();
+					Object.keys(fnc).forEach(function(name){
+						boundHypeFunctions[name] = fnc[name].bind(hypeDocument, hypeDocument,  options.element, options.event);
 					});
+					$context = Object.assign($context, boundHypeFunctions);
 
-					$context = Object.assign($context, contextHypeFunctions);
+				} else {
+					
+					// use modern Proxy approach enabling more options
+					$context = new Proxy($context, {
+
+						set(target, key, val, receiver) {
+							// test if key exists on target
+							if (!Reflect.get(target, key, receiver)) {
+								// key doesn't exist, assume its a variable in customData we are setting
+								return Reflect.set(hypeDocument.customData, key, val)
+							}
+							// else follow regular behavior
+							return Reflect.set(target, key, val, receiver)
+						},
+
+						get(target, key, receiver) {
+							// fetch key from target and return it if found
+							var value = Reflect.get(target, key, receiver)
+							if (value) return value;
+							// check if there is a user function and bind it to current hypeDocumen, element and event
+							var fnc = Reflect.get(hypeDocument.functions(), key);
+							if (fnc) return fnc.bind(hypeDocument, hypeDocument,  options.element, options.event);
+							// we don't have a value, assume user wants customData
+							return Reflect.get(hypeDocument.customData, key)
+						},
+
+						has(target, key, receiver) {
+							// check if key doesn't exist on target or in window
+							if (!target.hasOwnProperty(key) && !window[key]) { //alternative: && !Reflect.get(window, key, receiver) {
+								// proclaim it exists in target (needed for with {})
+								return true;
+							}
+							// else follow regular behavior
+							return Reflect.has(target, key, receiver)
+						},
+					});
 				}
-
 			}
 
 			try {
-				var functionBody = $context? 'with($context){'+code+'}' : strictMode? '"use strict";'+code: code;
-				return Function('$context', '$hype', '$symbol', '$elm', '$event', functionBody)(
+				var functionBody = $context? 'with($ctx){'+code+'}' : strictMode? '"use strict";'+code: code;
+				return Function('$ctx', '$doc', '$sym', '$elm', '$evt', functionBody)(
 					$context, hypeDocument, options.symbolInstance, options.element, options.event
 				);
 			} catch (e){
 				if (getDefault('debug') || isHypePreview()) {
-					alert ((options.errorMsg||_extensionName+' Error')+(!options.omitError? ': '+e:'')+"\n\n"+code);
+					console.log ((options.errorMsg||_extensionName+' Error')+(!options.omitError? ': '+e:'')+"\n\n"+code);
 				}
 			}
 		}
 
-		/* setup firing of user interaction events */
-		var DOMEventTypes = Array.prototype.concat.apply([], [
-			getDefault('MouseEvents'),
-			getDefault('TouchEvents'),
-			getDefault('KeyboardEvents'),
-			getDefault('FormEvents'),
-		]);
-
-		var hypeDocumentElm = document.getElementById(hypeDocument.documentId());
-
-		DOMEventTypes.filter(function(DOMEventType){
-
-			hypeDocumentElm.addEventListener(DOMEventType, function(event){
-				var element = event.target;
-				var type = event.type;
-
-				if(element && type){
-					var code = element.getAttribute('data-'+type+'-action');
-					if (code) hypeDocument.triggerAction (code, {
-						element: element,
-						event:  event
-					});
-				}
-			});
-		});
+		// fire HypeActionEvents on HypeDocumentLoad
+		if (typeof hypeDocument.functions().HypeActionEvents == 'function'){
+			hypeDocument.functions().HypeActionEvents(hypeDocument, element, event);
+		}
 	}
 
 
@@ -226,7 +263,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	function HypeSceneLoad (hypeDocument, element, event) {
 		
 		// Register Event listener for Matter if mounted
-		if (Matter && getDefault('MatterEvents') && getDefault('MatterEvents').length) {
+		if ('Matter' in window != false && getDefault('MatterEvents') && getDefault('MatterEvents').length) {
 			
 			// Fetch physics engine for our hypeDocument
 			var hypeDocElm = document.getElementById(hypeDocument.documentId());
@@ -242,6 +279,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 
 	function HypeSymbolLoad (hypeDocument, element, event) {
+		// check if there is a function with ther same name as symbolName and run it
 		var symbolInstance = hypeDocument.getSymbolInstanceById(element.id);
 		if (typeof hypeDocument.functions()[symbolInstance.symbolName()] == 'function'){
 			hypeDocument.functions()[symbolInstance.symbolName()](hypeDocument, element, event)
@@ -249,7 +287,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	}
 	
 	function HypeTriggerCustomBehavior(hypeDocument, element, event) {
-		// if a custom behavior seems like JavaScript fire it as an action
+		// if a custom behavior seems like JavaScript function fire it as an action
 		var code = event.customBehaviorName;
 		if (/[;=()]/.test(code)) hypeDocument.triggerAction (code, {
 			element: element,
@@ -263,9 +301,6 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	window.HYPE_eventListeners.push({"type":"HypeSceneLoad", "callback": HypeSceneLoad});
 	window.HYPE_eventListeners.push({"type":"HypeSymbolLoad", "callback": HypeSymbolLoad});
 	window.HYPE_eventListeners.push({"type":"HypeTriggerCustomBehavior", "callback":HypeTriggerCustomBehavior});
-
-    // window.HYPE_eventListeners.push({"type":"HypeScenePrepareForDisplay", "callback": HypeScenePrepareForDisplay});
-	
 		
 	/**
 	 * @typedef {Object} HypeActionEvents
@@ -274,7 +309,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.0',
+		version: '1.0.1',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
