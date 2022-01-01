@@ -1,12 +1,14 @@
 /*!
-Hype Action Events 1.0.1
-copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
+Hype Action Events 1.0.2
+copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
 * Version-History
 * 1.0.0	Initial release under MIT-license
 * 1.0.1 Proxy is default (LegacyMode available), firing HypeActionEvents on HypeDocumentLoad and refactored variables
+* 1.0.2 Prioritize user functions over functions in hypeDocument, added events on data-scene-load-action,
+		data-scene-unload-action, data-scene-prepare-action and data-layout-request-action
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -33,27 +35,23 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		// strict expressions (prevent any context, even more harsh then LegacyMode)
 		StrictMode: false,
 
-		// flags for code context
-		ContextCustomData: true,
-		ContextHypeFunctions: true,
-		ContextHypeDocument: true,
-		ContextSymbolInstance: true,
-		ContextBindHypeFunctions: true,
-
 		// matter events
 		MatterEvents: ['collisionStart', 'collisionEnd', 'collisionActive'],
 
-		// mouse events ( MouseEvent ):
-		MouseEvents: ['mousedown', 'mouseup', 'click', 'dblclick', 'mouseover', 'mousewheel', 'mouseout', 'contextmenu', 'mousemove' ],
+		// DOM events that are enabled when the Hype Document loads
+		DOMEvents: [
+			// mouse events ( MouseEvent ):
+			'mousedown', 'mouseup', 'click', 'dblclick', 'mouseover', 'mousewheel', 'mouseout', 'contextmenu', 'mousemove',
 			
-		// touch events ( TouchEvent ): 
-		TouchEvents: ['touchstart', 'touchmove', 'touchend', 'touchcancel'],
+			// touch events ( TouchEvent ): 
+			'touchstart', 'touchmove', 'touchend', 'touchcancel',
 			
-		// keyboard events ( KeyboardEvent ): 
-		KeyboardEvents: ['keydown', 'keypress', 'keyup'],
+			// keyboard events ( KeyboardEvent ): 
+			'keydown', 'keypress', 'keyup',
 			
-		// form events: 
-		FormEvents: ['focus', 'blur', 'change', 'submit'],
+			// form events: 
+			'focus', 'blur', 'change', 'submit'
+		],
 
 	}
 
@@ -94,16 +92,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		var hypeDocElm = document.getElementById(hypeDocument.documentId());
 
 		/* setup firing of user interaction events based on bubbling to Hype Document root */
-		var DOMEventTypes = Array.prototype.concat.apply([], [
-			getDefault('MouseEvents'),
-			getDefault('TouchEvents'),
-			getDefault('KeyboardEvents'),
-			getDefault('FormEvents'),
-		]);
+		getDefault('DOMEvents').filter(function(DOMEvent){
 
-		DOMEventTypes.filter(function(DOMEventType){
-
-			hypeDocElm.addEventListener(DOMEventType, function(event){
+			hypeDocElm.addEventListener(DOMEvent, function(event){
 				var element = event.target;
 				var type = event.type;
 
@@ -181,12 +172,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						},
 
 						get(target, key, receiver) {
+							// check if there is a user function and bind it to current hypeDocument, element and event
+							var fnc = Reflect.get(hypeDocument.functions(), key);
+							if (fnc) return fnc.bind(hypeDocument, hypeDocument,  options.element, options.event);
 							// fetch key from target and return it if found
 							var value = Reflect.get(target, key, receiver)
 							if (value) return value;
-							// check if there is a user function and bind it to current hypeDocumen, element and event
-							var fnc = Reflect.get(hypeDocument.functions(), key);
-							if (fnc) return fnc.bind(hypeDocument, hypeDocument,  options.element, options.event);
 							// we don't have a value, assume user wants customData
 							return Reflect.get(hypeDocument.customData, key)
 						},
@@ -260,7 +251,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	
 
 	function HypeSceneLoad (hypeDocument, element, event) {
-		
+
 		// Register Event listener for Matter if mounted
 		if ('Matter' in window != false && getDefault('MatterEvents') && getDefault('MatterEvents').length) {
 			
@@ -274,17 +265,57 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			registerMatterCollisionEvent(hypeDocument, element, event, engine, 'collisionEnd', 'collision-end');
 		}
 
+		// Fire events
+		element.querySelectorAll('[data-scene-load-action]').forEach(function(elm){
+			var code = elm.getAttribute('data-scene-load-action');
+			if (code) hypeDocument.triggerAction (code, {
+				element: elm,
+				event:  event
+			});
+		});
 	}
 
+	function HypeSceneUnload (hypeDocument, element, event) {
+		// Fire events
+		element.querySelectorAll('[data-scene-unload-action]').forEach(function(elm){
+			var code = elm.getAttribute('data-scene-unload-action');
+			if (code) hypeDocument.triggerAction (code, {
+				element: elm,
+				event:  event
+			});
+		});
+	}
+	
+	function HypeScenePrepareForDisplay (hypeDocument, element, event) {
+		// Fire events
+		element.querySelectorAll('[data-scene-prepare-action]').forEach(function(elm){
+			var code = elm.getAttribute('data-scene-prepare-action');
+			if (code) hypeDocument.triggerAction (code, {
+				element: elm,
+				event:  event
+			});
+		});
+	}
 
-	function HypeSymbolLoad (hypeDocument, element, event) {
-		// check if there is a function with ther same name as symbolName and run it
+	function HypeLayoutRequest (hypeDocument, element, event) {
+		// Fire events
+		element.querySelectorAll('[data-layout-request-action]').forEach(function(elm){
+			var code = elm.getAttribute('data-layout-request-action');
+			if (code) hypeDocument.triggerAction (code, {
+				element: elm,
+				event:  event
+			});
+		});
+	}
+
+	function ForwardSymbolEvent (hypeDocument, element, event) {
+		// check if there is a function with the same name as symbolName and run it
 		var symbolInstance = hypeDocument.getSymbolInstanceById(element.id);
 		if (typeof hypeDocument.functions()[symbolInstance.symbolName()] == 'function'){
 			hypeDocument.functions()[symbolInstance.symbolName()](hypeDocument, element, event)
 		}
 	}
-	
+
 	function HypeTriggerCustomBehavior(hypeDocument, element, event) {
 		// if a custom behavior seems like JavaScript function fire it as an action
 		var code = event.customBehaviorName;
@@ -297,8 +328,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	/* setup callbacks */
 	if("HYPE_eventListeners" in window === false) { window.HYPE_eventListeners = Array();}
 	window.HYPE_eventListeners.push({"type":"HypeDocumentLoad", "callback": HypeDocumentLoad});
+	window.HYPE_eventListeners.push({"type":"HypeLayoutRequest", "callback": HypeLayoutRequest});
+	window.HYPE_eventListeners.push({"type":"HypeScenePrepareForDisplay", "callback": HypeScenePrepareForDisplay});
 	window.HYPE_eventListeners.push({"type":"HypeSceneLoad", "callback": HypeSceneLoad});
-	window.HYPE_eventListeners.push({"type":"HypeSymbolLoad", "callback": HypeSymbolLoad});
+	window.HYPE_eventListeners.push({"type":"HypeSceneUnload", "callback": HypeSceneUnload});
+	window.HYPE_eventListeners.push({"type":"HypeSymbolLoad", "callback": ForwardSymbolEvent});
+	window.HYPE_eventListeners.push({"type":"HypeSymbolUnload", "callback": ForwardSymbolEvent});
 	window.HYPE_eventListeners.push({"type":"HypeTriggerCustomBehavior", "callback":HypeTriggerCustomBehavior});
 		
 	/**
@@ -308,7 +343,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.1',
+		version: '1.0.2',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
