@@ -10,7 +10,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.2 Prioritize user functions over functions in hypeDocument, added events on data-scene-load-action,
         data-scene-unload-action, data-scene-prepare-action and data-layout-request-action
 * 1.0.3 Added event functions for ResizeObserver, IntersectionObserver and MutationObserver, 
-        changed to passive DOM events, added requestAnimationFrame events, refactored events to be 
+        changed to passive DOM events, added requestAnimationFrame events, added window and document events
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -25,6 +25,10 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		return window.location.href.indexOf("127.0.0.1:") != -1 &&
 			window.location.href.indexOf("/preview/") != -1;
 	}
+
+	var nonPassiveDOMEvents = [
+		'drag', 'dragstart', 'dragend', 'dragover', 'dragenter', 'dragleave', 'drop',
+	];
 	
 	// defaults
 	var _default = {
@@ -45,7 +49,8 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		// DOM events that are enabled when the Hype Document loads
 		DOMEvents: [
 			// mouse events ( MouseEvent ):
-			'mousedown', 'mouseup', 'click', 'dblclick', 'mouseover', 'mousewheel', 'mouseout', 'contextmenu', 'mousemove',
+			'mousedown', 'mouseup', 'click', 'dblclick', 'mouseover', 
+			'mousewheel', 'mouseout', 'contextmenu', 'mousemove',
 			
 			// touch events ( TouchEvent ): 
 			'touchstart', 'touchmove', 'touchend', 'touchcancel',
@@ -54,17 +59,59 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			'keydown', 'keypress', 'keyup',
 			
 			// form events: 
-			'focus', 'blur', 'change', 'submit'
-		],
+			'focus', 'blur', 'change', 'submit', 'input', 'beforeinput',
+
+			// CSS animations
+			'animationstart', 'animationiteration', 'animationend', 'animationcancel',
+
+			// CSS transitions
+			'transitionstart', 'transitionrun', 'transitionend', 'transitioncancel',
+
+			// Pointer events
+			'pointerdown', 'pointerup', 'pointerover', 'pointerout',
+			'pointermove', 'pointerenter', 'pointerleave', 'pointercancel',
+
+			// concat nonpassive events
+		].concat(nonPassiveDOMEvents),
+
+		nonPassiveDOMEvents: nonPassiveDOMEvents,
 
 		// supported window events
+		// https://developer.mozilla.org/en-US/docs/Web/API/Window#events
 		WindowEvents: [
-			'resize', 'focus', 'blur', 'beforeprint', 'afterprint'
+			
+			// window
+			'resize', 'focus', 'blur',
+			
+			// printing
+			'beforeprint', 'afterprint', 
+			
+			// javascript
+			'error', 
+
+			// other
+			'storage',
+
+			// connection
+			'online', 'offline',
+
+			// history
+			'hashchange', 'popstate',
+
+			// communication
+			'message', 
+
+			// input
+			'wheel'
 		],
 
 		// supported document events
 		DocumentEvents: [
-			'visibilitychange', 'scroll' 
+			'visibilitychange', 'scroll',
+
+			// fullscreen
+			'fullscreenchange',
+
 		],
 
 		// list of keywords that are forced to not be in proxy
@@ -133,7 +180,6 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 		/* setup firing of user interaction events based on bubbling to Hype Document root */
 		getDefault('DOMEvents').filter(function(DOMEvent){
-
 			hypeDocElm.addEventListener(DOMEvent, function(event){
 				var element = event.target;
 				var type = event.type;
@@ -145,7 +191,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						event:  event
 					});
 				}
-			}, {passive: true});
+			}, {passive: getDefault('nonPassiveDOMEvents').indexOf(DOMEvent)==-1});
 		});
 
 		/**
