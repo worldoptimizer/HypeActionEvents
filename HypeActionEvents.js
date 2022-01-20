@@ -179,7 +179,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		}
 
 		/* setup firing of user interaction events based on bubbling to Hype Document root */
-		getDefault('DOMEvents').filter(function(DOMEvent){
+		getDefault('DOMEvents').forEach(function(DOMEvent){
 			hypeDocElm.addEventListener(DOMEvent, function(event){
 				var element = event.target;
 				var type = event.type;
@@ -522,7 +522,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		}
 
 		// window based effects
-		getDefault('WindowEvents').filter(function(WindowEvent){
+		getDefault('WindowEvents').forEach(function(WindowEvent){
 			var eventElms = sceneElm.querySelectorAll('[data-window-'+WindowEvent+'-action]')
 			if (eventElms) {
 				_lookup[hypeDocId].wE[WindowEvent] = function(event){
@@ -547,7 +547,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		});
 
 		// document based effects
-		getDefault('DocumentEvents').filter(function(DocumentEvent){
+		getDefault('DocumentEvents').forEach(function(DocumentEvent){
 			var eventElms = sceneElm.querySelectorAll('[data-document-'+DocumentEvent+'-action]')
 			if (eventElms) {
 				_lookup[hypeDocId].dE[DocumentEvent] = function(event){
