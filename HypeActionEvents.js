@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.2
+Hype Action Events 1.0.3
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -8,7 +8,9 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.0	Initial release under MIT-license
 * 1.0.1 Proxy is default (LegacyMode available), firing HypeActionEvents on HypeDocumentLoad and refactored variables
 * 1.0.2 Prioritize user functions over functions in hypeDocument, added events on data-scene-load-action,
-		data-scene-unload-action, data-scene-prepare-action and data-layout-request-action
+        data-scene-unload-action, data-scene-prepare-action and data-layout-request-action
+* 1.0.3 Added event functions for ResizeObserver, IntersectionObserver and MutationObserver, 
+        changed to passive DOM events, added requestAnimationFrame events, refactored events to be 
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -36,7 +38,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		StrictMode: false,
 
 		// matter events
-		MatterEvents: ['collisionStart', 'collisionEnd', 'collisionActive'],
+		MatterEvents: [
+			'collisionStart', 'collisionEnd', 'collisionActive'
+		],
 
 		// DOM events that are enabled when the Hype Document loads
 		DOMEvents: [
@@ -53,7 +57,23 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			'focus', 'blur', 'change', 'submit'
 		],
 
+		// supported window events
+		WindowEvents: [
+			'resize', 'focus', 'blur', 'beforeprint', 'afterprint'
+		],
+
+		// supported document events
+		DocumentEvents: [
+			'visibilitychange', 'scroll' 
+		],
+
+		// list of keywords that are forced to not be in proxy
+		ProxyHasNot: ['$ctx', '$doc', '$sym', '$elm', '$evt'],
+
 	}
+
+	// variables for document specific observer and instance references
+	var _lookup = {}
 
 	/**
 	 * This function allows to override a global default by key or if a object is given as key to override all default at once
@@ -91,6 +111,26 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		// fetch Hype Document element for event listener
 		var hypeDocElm = document.getElementById(hypeDocument.documentId());
 
+		//prepare lookup based on document id
+		_lookup[hypeDocument.documentId()] = {
+			rO: {},
+			// Intersection Observer
+			iO: {}, 
+			// Mutation Observer
+			mO: {},
+			// Request Animation Frame 
+			// - ID
+			rAFiD: null,
+			// - Scene Frames
+			rAFsF: 0,
+			// - Total Frames
+			rAFtF: 0,
+			// window events
+			wE: {},
+			// document events
+			dE: {},
+		}
+
 		/* setup firing of user interaction events based on bubbling to Hype Document root */
 		getDefault('DOMEvents').filter(function(DOMEvent){
 
@@ -105,7 +145,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						event:  event
 					});
 				}
-			});
+			}, {passive: true});
 		});
 
 		/**
@@ -134,7 +174,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 				event: {}
 			}, options);
 
-			var $context, $pcontext;
+			var $context;
 			var strictMode = options.strictMode || getDefault('StrictMode');
 
 			if (!strictMode) {
@@ -172,22 +212,30 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						},
 
 						get(target, key, receiver) {
+							
 							// check if there is a user function and bind it to current hypeDocument, element and event
 							var fnc = Reflect.get(hypeDocument.functions(), key);
 							if (fnc) return fnc.bind(hypeDocument, hypeDocument,  options.element, options.event);
+							
 							// fetch key from target and return it if found
 							var value = Reflect.get(target, key, receiver)
 							if (value) return value;
+							
 							// we don't have a value, assume user wants customData
 							return Reflect.get(hypeDocument.customData, key)
 						},
 
 						has(target, key, receiver) {
+
+							// check if key should walk up the proto chain (hence, break out of proxy), used for arguments
+							if (getDefault('ProxyHasNot').indexOf(key) !== -1) return false;
+
 							// check if key doesn't exist on target or in window
-							if (!target.hasOwnProperty(key) && !window[key]) { //alternative: && !Reflect.get(window, key, receiver) {
+							if (!target.hasOwnProperty(key) && !window[key]) { //alternative: && !Reflect.get(window, key, receiver)) {
 								// proclaim it exists in target (needed for with {})
 								return true;
 							}
+
 							// else follow regular behavior
 							return Reflect.has(target, key, receiver)
 						},
@@ -202,7 +250,19 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 				);
 			} catch (e){
 				if (getDefault('debug') || isHypePreview()) {
-					console.log ((options.errorMsg||_extensionName+' Error')+(!options.omitError? ': '+e:'')+"\n\n"+code);
+					
+					console.error(
+						"%c"+(options.errorMsg||_extensionName+' Error')+
+						"%c"+(options.errorMsg? '':' version '+HypeActionEvents.version)+"\n\n"+
+						"%c"+code+
+						(!options.omitError? "%c"+"\n\n"+e+"\n\n": ''),
+						 "font-size:12px; font-weight:bold",
+						 "font-size:8px",
+						 "min-height:40px;display: inline-block; padding: 10px; background-color: rgba(255,255,255,0.25); border: 1px solid lightgray; border-radius: 4px; font-family:Monospace; font-size:12px",
+						 "font-size:11px",
+						 options.element? options.element : '',
+					);
+					
 				}
 			}
 		}
@@ -216,9 +276,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 	function registerMatterCollisionEvent(hypeDocument, element, event, engine, eventType, attr){
 
-		// eventType
+		// is eventType actully enabled
 		if (getDefault('MatterEvents').indexOf(eventType) == -1) return; 
 		
+		// Check if scene contains actions for this event type (element assumed sceneElm)
+		if (!element.querySelector('data-'+attr+'-action')) return;
+
 		Matter.Events.on(engine, eventType, function(event) {
 			var pairs = event.pairs;
 
@@ -251,12 +314,14 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	
 
 	function HypeSceneLoad (hypeDocument, element, event) {
+		var sceneElm = element;
+		var hypeDocId = hypeDocument.documentId();
+		var hypeDocElm = document.getElementById(hypeDocId);
 
 		// Register Event listener for Matter if mounted
 		if ('Matter' in window != false && getDefault('MatterEvents') && getDefault('MatterEvents').length) {
 			
 			// Fetch physics engine for our hypeDocument
-			var hypeDocElm = document.getElementById(hypeDocument.documentId());
 			var engine = hypeDocument.getElementProperty(hypeDocElm, 'physics-engine');
 
 			// register matter collision events
@@ -265,18 +330,206 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			registerMatterCollisionEvent(hypeDocument, element, event, engine, 'collisionEnd', 'collision-end');
 		}
 
-		// Fire events
-		element.querySelectorAll('[data-scene-load-action]').forEach(function(elm){
-			var code = elm.getAttribute('data-scene-load-action');
-			if (code) hypeDocument.triggerAction (code, {
-				element: elm,
-				event:  event
-			});
+		// trigger actions by dataset key
+		triggerActionByDataset(hypeDocument, element, event, 'data-scene-load-action');
+
+		// Start resize observer
+		sceneElm.querySelectorAll('[data-resize-action]').forEach(function(elm){
+			if (!_lookup[hypeDocId].rO[elm.id]){
+				_lookup[hypeDocId].rO[elm.id] = new ResizeObserver(function(entries, observer){
+					var code = elm.getAttribute('data-resize-action');
+					if (code) entries.forEach(function(entry, index){
+						hypeDocument.triggerAction (code, {
+							element: elm,
+							event:  {
+								type: 'ResizeObserver',
+								entry: entry,
+								index: index,
+								entries: entries,
+								observer: observer,
+							} 
+						});
+					})
+				});
+			}
+			var targetSelector = elm.getAttribute('data-resize-target');
+			_lookup[hypeDocId].rO[elm.id].observe(targetSelector || elm);
+		});
+
+		// Start intersection observer
+		sceneElm.querySelectorAll('[data-intersection-action]').forEach(function(elm){
+			if (!_lookup[hypeDocId].iO[elm.id]){
+				var rootSelector = elm.getAttribute('data-intersection-root');
+				var rootMargin = elm.getAttribute('data-intersection-margin');
+				var threshold = elm.getAttribute('data-intersection-threshold');
+				
+				threshold = threshold? threshold.replace(/\s\s+/g,' ').split(' ').map(function(value){
+					return value.indexOf('%')!==-1? parseFloat(value)/100 : parseFloat(value);
+				}) : getDefault('IntersectionTreshold') || null;
+
+				_lookup[hypeDocId].iO[elm.id] = new IntersectionObserver(function(entries, observer){
+					var code = elm.getAttribute('data-intersection-action');
+					if (code) entries.forEach(function(entry, index){
+						// closest threshold match
+						var closestThreshold = 0;
+						if (entry.isIntersecting && threshold) {
+							closestThreshold = threshold.reduce(function(a, b){
+								return Math.abs(b - entry.intersectionRatio) < Math.abs(a - entry.intersectionRatio) ? b : a;
+							});
+						}
+
+						hypeDocument.triggerAction (code, {
+							element: elm,
+							event:  {
+								type: 'IntersectionObserver',
+								entry: entry,
+								index: index,
+								entries: entries,
+								observer: observer,
+								closestThreshold: closestThreshold,
+								closestThresholdPercent: closestThreshold * 100,
+								isAbove: entry.boundingClientRect.y < entry.rootBounds.y,
+							} 
+						});
+					});
+					
+				}, {
+					// option root: use a selector (defaults to null = viewport)
+					root: sceneElm.querySelector(rootSelector) || null,
+					rootMargin: rootMargin || '0px',
+					threshold: threshold || null,
+
+				});
+			}
+			var targetSelector = elm.getAttribute('data-intersection-target');
+			_lookup[hypeDocId].iO[elm.id].observe(targetSelector || elm);
+		});
+
+
+		// Start mutation observer
+		sceneElm.querySelectorAll('[data-mutation-action]').forEach(function(elm){
+			if (!_lookup[hypeDocId].mO[elm.id]){
+				_lookup[hypeDocId].mO[elm.id] = new MutationObserver(function(mutations, observer){
+					var code = elm.getAttribute('data-mutation-action');
+					if (code) mutations.forEach(function(mutation, index){
+						hypeDocument.triggerAction (code, {
+							element: elm,
+							event:  {
+								type: 'MutationObserver',
+								mutation: mutation,
+								index: index,
+								mutations: mutations,
+								observer: observer,
+							} 
+						});
+					});
+				});
+			}
+
+			var childList = elm.getAttribute('data-mutation-child-list') == 'true';
+			var attributes = elm.getAttribute('data-mutation-attributes') == 'true' || true;
+			var characterData = elm.getAttribute('data-mutation-character-data') == 'true';
+			var subtree = elm.getAttribute('data-mutation-subtree') == 'true';
+			var attributeFilter = elm.getAttribute('data-mutation-attribute-filter');
+
+			attributeFilter = attributeFilter? attributeFilter.split(',').map(function(value){
+				return value.trim();
+			}) : getDefault('AttributeFilter') || null;
+
+			var config = {
+				childList: childList, 
+				attributes: attributes,
+				characterData: characterData,
+				subtree: subtree,
+			}
+			if (attributeFilter) {
+				config.assign(config, {
+					attributeFilter: attributeFilter,
+				})
+			}
+
+			var targetSelector = elm.getAttribute('data-mutation-target');
+			_lookup[hypeDocId].mO[elm.id].observe(targetSelector || elm, config);
+		});
+
+		// Start request animation events
+		var requestAnimationFrameElms = sceneElm.querySelectorAll('[data-animation-frame-action]');
+		if (requestAnimationFrameElms) {
+			_lookup[hypeDocId].rAFsF = 0;
+			var callback = function(time){
+				requestAnimationFrameElms.forEach(function(elm){
+					var code = elm.getAttribute('data-animation-frame-action');
+					if (code) hypeDocument.triggerAction (code, {
+						element: elm,
+						event:  {
+							type: 'AnimationFrame',
+							time: time,
+							// increase frame counters
+							sceneFrames: _lookup[hypeDocId].rAFsF++,
+							totalFrames: _lookup[hypeDocId].rAFtF++,
+						} 
+					});
+				});
+				_lookup[hypeDocId].rAFiD = requestAnimationFrame(callback);
+			}
+			_lookup[hypeDocId].rAFiD = requestAnimationFrame(callback);
+		}
+
+		// window based effects
+		getDefault('WindowEvents').filter(function(WindowEvent){
+			var eventElms = sceneElm.querySelectorAll('[data-window-'+WindowEvent+'-action]')
+			if (eventElms) {
+				_lookup[hypeDocId].wE[WindowEvent] = function(event){
+					var type = event.type;
+					eventElms.forEach(function(elm){
+						if(elm && type){
+							var code = elm.getAttribute('data-window-'+WindowEvent+'-action');
+							if (code) hypeDocument.triggerAction (code, {
+								element: elm,
+								event:  event
+							});
+						}
+					});
+				}
+				
+				window.addEventListener(
+					WindowEvent, 
+					_lookup[hypeDocId].wE[WindowEvent],
+					{passive: true}
+				);
+			}
+		});
+
+		// document based effects
+		getDefault('DocumentEvents').filter(function(DocumentEvent){
+			var eventElms = sceneElm.querySelectorAll('[data-document-'+DocumentEvent+'-action]')
+			if (eventElms) {
+				_lookup[hypeDocId].dE[DocumentEvent] = function(event){
+					var type = event.type;
+					eventElms.forEach(function(elm){
+						if(elm && type){
+							var code = elm.getAttribute('data-document-'+DocumentEvent+'-action');
+							if (code) hypeDocument.triggerAction (code, {
+								element: elm,
+								event:  event
+							});
+						}
+					});
+				}
+
+				document.addEventListener(
+					DocumentEvent, 
+					_lookup[hypeDocId].dE[DocumentEvent],
+					{passive: true}
+				);
+			}
 		});
 	}
 
 	function HypeSceneUnload (hypeDocument, element, event) {
-		// Fire events
+		var hypeDocId = hypeDocument.documentId();
+
+		// Fire events on unload actions
 		element.querySelectorAll('[data-scene-unload-action]').forEach(function(elm){
 			var code = elm.getAttribute('data-scene-unload-action');
 			if (code) hypeDocument.triggerAction (code, {
@@ -284,23 +537,62 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 				event:  event
 			});
 		});
+
+		// Stop resize observer registered to this document id
+		for (var elmId in _lookup[hypeDocId].rO){
+			element.querySelectorAll('[data-resize-action]').forEach(function(elm){
+				_lookup[hypeDocId].rO[elmId].unobserve(document.getElementById(elm.id));
+			});
+		}
+
+		// Stop intersection observer registered to this document id
+		for (var elmId in _lookup[hypeDocId].iO){
+			element.querySelectorAll('[data-intersection-action]').forEach(function(elm){
+				_lookup[hypeDocId].iO[elmId].unobserve(document.getElementById(elm.id));
+			});
+		}
+
+		// Stop mutation observer registered to this document id
+		for (var elmId in _lookup[hypeDocId].mO){
+			_lookup[hypeDocId].mO[elmId].disconnect();
+		}
+
+		// Cancel request animation based events registered to this document id
+		if (_lookup[hypeDocId].rAFiD) {
+			cancelAnimationFrame(_lookup[hypeDocId].rAFiD);
+			_lookup[hypeDocId].rAFiD = null;
+		}
+
+		// remove any existing window handler
+		getDefault('WindowEvents').forEach(function(WindowEvent){
+			if (_lookup[hypeDocId].wE[WindowEvent]) {
+				window.removeEventListener(WindowEvent, _lookup[hypeDocId].wE[WindowEvent]);
+				delete _lookup[hypeDocId].wE[WindowEvent];
+			}
+		});
+
+		// remove any existing document handler
+		getDefault('DocumentEvents').forEach(function(DocumentEvent){
+			if (_lookup[hypeDocId].dE[DocumentEvent]) {
+				document.removeEventListener(DocumentEvent, _lookup[hypeDocId].dE[DocumentEvent]);
+				delete _lookup[hypeDocId].dE[DocumentEvent];
+			}
+		});
 	}
 	
 	function HypeScenePrepareForDisplay (hypeDocument, element, event) {
-		// Fire events
-		element.querySelectorAll('[data-scene-prepare-action]').forEach(function(elm){
-			var code = elm.getAttribute('data-scene-prepare-action');
-			if (code) hypeDocument.triggerAction (code, {
-				element: elm,
-				event:  event
-			});
-		});
+		// trigger actions by dataset key
+		triggerActionByDataset(hypeDocument, element, event, 'data-scene-prepare-action');
 	}
 
 	function HypeLayoutRequest (hypeDocument, element, event) {
-		// Fire events
-		element.querySelectorAll('[data-layout-request-action]').forEach(function(elm){
-			var code = elm.getAttribute('data-layout-request-action');
+		// trigger actions by dataset key
+		triggerActionByDataset(hypeDocument, element, event, 'data-layout-request-action');
+	}
+
+	function triggerActionByDataset(hypeDocument, element, event, key){
+		element.querySelectorAll('['+key+']').forEach(function(elm){
+			var code = elm.getAttribute(key);
 			if (code) hypeDocument.triggerAction (code, {
 				element: elm,
 				event:  event
@@ -343,7 +635,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.2',
+		version: '1.0.4',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
