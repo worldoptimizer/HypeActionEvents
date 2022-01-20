@@ -635,7 +635,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.4',
+		version: '1.0.3',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
