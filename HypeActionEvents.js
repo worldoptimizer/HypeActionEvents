@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.3
+Hype Action Events 1.0.4
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -11,6 +11,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
         data-scene-unload-action, data-scene-prepare-action and data-layout-request-action
 * 1.0.3 Added event functions for ResizeObserver, IntersectionObserver and MutationObserver, 
         changed to passive DOM events, added requestAnimationFrame events, added window and document events
+* 1.0.4 Added the event.symbolInstance to Hype function calls if present
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -223,7 +224,10 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			var $context;
 			var strictMode = options.strictMode || getDefault('StrictMode');
 
+			// unless we are in strict mode prepare context
 			if (!strictMode) {
+				
+				// set default context
 				$context = Object.assign(
 					// start empty
 					{}, 
@@ -289,14 +293,24 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 				}
 			}
 
+			// add the symbol instance to the event if set
+			if (options.symbolInstance) {
+				Object.assign(options.event, {
+					symbolInstance: options.symbolInstance
+				})
+			}
+
+			// trigger action
 			try {
 				var functionBody = $context? 'with($ctx){'+code+'}' : strictMode? '"use strict";'+code: code;
 				return Function('$ctx', '$doc', '$sym', '$elm', '$evt', functionBody)(
 					$context, hypeDocument, options.symbolInstance, options.element, options.event
 				);
+
 			} catch (e){
 				if (getDefault('debug') || isHypePreview()) {
 					
+					// render error message
 					console.error(
 						"%c"+(options.errorMsg||_extensionName+' Error')+
 						"%c"+(options.errorMsg? '':' version '+HypeActionEvents.version)+"\n\n"+
@@ -308,7 +322,6 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						 "font-size:11px",
 						 options.element? options.element : '',
 					);
-					
 				}
 			}
 		}
@@ -502,7 +515,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		var requestAnimationFrameElms = sceneElm.querySelectorAll('[data-animation-frame-action]');
 		if (requestAnimationFrameElms) {
 			_lookup[hypeDocId].rAFsF = 0;
-			var callback = function(time){
+			var rAFfunction = function(time){
 				requestAnimationFrameElms.forEach(function(elm){
 					var code = elm.getAttribute('data-animation-frame-action');
 					if (code) hypeDocument.triggerAction (code, {
@@ -516,9 +529,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						} 
 					});
 				});
-				_lookup[hypeDocId].rAFiD = requestAnimationFrame(callback);
+				_lookup[hypeDocId].rAFiD = requestAnimationFrame(rAFfunction);
 			}
-			_lookup[hypeDocId].rAFiD = requestAnimationFrame(callback);
+			_lookup[hypeDocId].rAFiD = requestAnimationFrame(rAFfunction);
 		}
 
 		// window based effects
@@ -681,7 +694,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.3',
+		version: '1.0.4',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
