@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.4
+Hype Action Events 1.0.5
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -12,6 +12,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.3 Added event functions for ResizeObserver, IntersectionObserver and MutationObserver, 
         changed to passive DOM events, added requestAnimationFrame events, added window and document events
 * 1.0.4 Added the event.symbolInstance to Hype function calls if present
+* 1.0.5 Fixed typo that prevented collision events to be detected
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -339,8 +340,8 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		if (getDefault('MatterEvents').indexOf(eventType) == -1) return; 
 		
 		// Check if scene contains actions for this event type (element assumed sceneElm)
-		if (!element.querySelector('data-'+attr+'-action')) return;
-
+		if (!element.querySelector('[data-'+attr+'-action]')) return;
+		
 		Matter.Events.on(engine, eventType, function(event) {
 			var pairs = event.pairs;
 
@@ -379,7 +380,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 		// Register Event listener for Matter if mounted
 		if ('Matter' in window != false && getDefault('MatterEvents') && getDefault('MatterEvents').length) {
-			
+
 			// Fetch physics engine for our hypeDocument
 			var engine = hypeDocument.getElementProperty(hypeDocElm, 'physics-engine');
 
@@ -694,7 +695,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.4',
+		version: '1.0.5',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
