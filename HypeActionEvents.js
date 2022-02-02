@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.5
+Hype Action Events 1.0.6
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -13,6 +13,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
         changed to passive DOM events, added requestAnimationFrame events, added window and document events
 * 1.0.4 Added the event.symbolInstance to Hype function calls if present
 * 1.0.5 Fixed typo that prevented collision events to be detected
+* 1.0.6 Added hypeDocument, element and event to the triggerAction context, added data-behavior-action
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -117,7 +118,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		],
 
 		// list of keywords that are forced to not be in proxy
-		ProxyHasNot: ['$ctx', '$doc', '$sym', '$elm', '$evt'],
+		ProxyHasNot: ['$ctx', '$doc', '$sym', '$elm', '$evt', 'hypeDocument', 'element', 'event'],
 
 	}
 
@@ -304,8 +305,8 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			// trigger action
 			try {
 				var functionBody = $context? 'with($ctx){'+code+'}' : strictMode? '"use strict";'+code: code;
-				return Function('$ctx', '$doc', '$sym', '$elm', '$evt', functionBody)(
-					$context, hypeDocument, options.symbolInstance, options.element, options.event
+				return Function('$ctx', '$doc', '$sym', '$elm', '$evt', 'hypeDocument', 'element', 'event', functionBody)(
+					$context, hypeDocument, options.symbolInstance, options.element, options.event, hypeDocument, options.element, options.event,
 				);
 
 			} catch (e){
@@ -671,10 +672,24 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	function HypeTriggerCustomBehavior(hypeDocument, element, event) {
 		// if a custom behavior seems like JavaScript function fire it as an action
 		var code = event.customBehaviorName;
-		if (/[;=()]/.test(code)) hypeDocument.triggerAction (code, {
-			element: element,
-			event: event
-		});
+		if (/[;=()]/.test(code)) {
+			hypeDocument.triggerAction (code, {
+				element: element,
+				event: event
+			});
+
+		// notify elements that want to run actions based on a custom behavior
+		} else {
+			var sceneElm = document.getElementById(hypeDocument.currentSceneId());
+
+			// trigger actions by dataset key
+			triggerActionByDataset(hypeDocument, sceneElm, event, 'data-behavior-action');
+
+			// trigger actions by dataset key, make behavior name compatible with dataset naming (lowercase, spaces to dash)
+			var customBehaviorNameSanitized = event.customBehaviorName.replaceAll(/[^a-zA-Z0-9\s]/g, '').replaceAll(/\s+/g, '-').toLowerCase();
+			triggerActionByDataset(hypeDocument, sceneElm, event, 'data-behavior-'+customBehaviorNameSanitized+'-action');
+
+		}
 	}
 	
 	/* setup callbacks */
@@ -695,7 +710,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.5',
+		version: '1.0.6',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
