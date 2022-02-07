@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.6
+Hype Action Events 1.0.7
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -14,6 +14,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.4 Added the event.symbolInstance to Hype function calls if present
 * 1.0.5 Fixed typo that prevented collision events to be detected
 * 1.0.6 Added hypeDocument, element and event to the triggerAction context, added data-behavior-action
+* 1.0.7 Added data-timeline-complete-action, hypeDocument.triggerActionsByAttribute and minor refactoring
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -29,8 +30,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			window.location.href.indexOf("/preview/") != -1;
 	}
 
-	var nonPassiveDOMEvents = [
+	var _nonPassiveDOMEvents = [
 		'drag', 'dragstart', 'dragend', 'dragover', 'dragenter', 'dragleave', 'drop',
+	];
+
+	var _functionSignature = [
+		'$ctx', '$doc', '$sym', '$elm', '$evt', 'hypeDocument', 'element', 'event'
 	];
 	
 	// defaults
@@ -75,9 +80,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			'pointermove', 'pointerenter', 'pointerleave', 'pointercancel',
 
 			// concat nonpassive events
-		].concat(nonPassiveDOMEvents),
+		].concat(_nonPassiveDOMEvents),
 
-		nonPassiveDOMEvents: nonPassiveDOMEvents,
+		nonPassiveDOMEvents: _nonPassiveDOMEvents,
 
 		// supported window events
 		// https://developer.mozilla.org/en-US/docs/Web/API/Window#events
@@ -116,11 +121,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			'fullscreenchange',
 
 		],
-
-		// list of keywords that are forced to not be in proxy
-		ProxyHasNot: ['$ctx', '$doc', '$sym', '$elm', '$evt', 'hypeDocument', 'element', 'event'],
-
 	}
+
+
 
 	// variables for document specific observer and instance references
 	var _lookup = {}
@@ -211,7 +214,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			return symbolInstance;
 		}
 		
-
+		/**
+		 * hypeDocument.triggerAction
+		 * @param {String} code The code to be executed
+		 * @param {Object} options The options for context
+		 * @return {*} whatever the code returns
+		 */
 		hypeDocument.triggerAction = function (code, options) {
 			if (!code) return;
 			options = options || {};
@@ -279,8 +287,8 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 						has(target, key, receiver) {
 
-							// check if key should walk up the proto chain (hence, break out of proxy), used for arguments
-							if (getDefault('ProxyHasNot').indexOf(key) !== -1) return false;
+							// check if key should walk up the proto chain (hence, break out of proxy), used for arguments in the function signature
+							if (_functionSignature.indexOf(key) !== -1) return false;
 
 							// check if key doesn't exist on target or in window
 							if (!target.hasOwnProperty(key) && !window[key]) { //alternative: && !Reflect.get(window, key, receiver)) {
@@ -304,9 +312,18 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 			// trigger action
 			try {
-				var functionBody = $context? 'with($ctx){'+code+'}' : strictMode? '"use strict";'+code: code;
-				return Function('$ctx', '$doc', '$sym', '$elm', '$evt', 'hypeDocument', 'element', 'event', functionBody)(
-					$context, hypeDocument, options.symbolInstance, options.element, options.event, hypeDocument, options.element, options.event,
+				var _functionBody = $context? 'with($ctx){'+code+'}' : strictMode? '"use strict";'+code: code;
+				return Function(_functionSignature, _functionBody)(
+					/* $ctx */ $context, 
+					/* $doc */ hypeDocument, 
+					/* $sym */ options.symbolInstance, 
+					/* $elm */ options.element, 
+					/* $evt */ options.event,
+					
+					/* since 1.0.6, for code transfer and compability */
+					/* hypeDocument */ hypeDocument, 
+					/* element */ options.element, 
+					/* event */ options.event,
 				);
 
 			} catch (e){
@@ -326,6 +343,17 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 					);
 				}
 			}
+		}
+		
+		hypeDocument.triggerActionsByAttribute = function(attribute, baseElm, options){
+			baseElm = baseElm || document.getElementById(hypeDocument.currentSceneId());
+			options = options || {};
+			baseElm.querySelectorAll('['+attribute+']').forEach(function(elm){
+				var code = elm.getAttribute(attribute);
+				if (code) hypeDocument.triggerAction (code, Object.assign({
+					element: elm
+				}, options));
+			});
 		}
 
 		// fire HypeActionEvents on HypeDocumentLoad
@@ -392,7 +420,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		}
 
 		// trigger actions by dataset key
-		triggerActionByDataset(hypeDocument, element, event, 'data-scene-load-action');
+		hypeDocument.triggerActionsByAttribute('data-scene-load-action', element, {
+			event: event
+		});
 
 		// Start resize observer
 		sceneElm.querySelectorAll('[data-resize-action]').forEach(function(elm){
@@ -643,30 +673,67 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	
 	function HypeScenePrepareForDisplay (hypeDocument, element, event) {
 		// trigger actions by dataset key
-		triggerActionByDataset(hypeDocument, element, event, 'data-scene-prepare-action');
+		hypeDocument.triggerActionsByAttribute('data-scene-prepare-action', element, {
+			event: event
+		});
+
 	}
 
 	function HypeLayoutRequest (hypeDocument, element, event) {
 		// trigger actions by dataset key
-		triggerActionByDataset(hypeDocument, element, event, 'data-layout-request-action');
-	}
-
-	function triggerActionByDataset(hypeDocument, element, event, key){
-		element.querySelectorAll('['+key+']').forEach(function(elm){
-			var code = elm.getAttribute(key);
-			if (code) hypeDocument.triggerAction (code, {
-				element: elm,
-				event:  event
-			});
+		hypeDocument.triggerActionsByAttribute('data-layout-request-action', element, {
+			event: event
 		});
 	}
 
-	function ForwardSymbolEvent (hypeDocument, element, event) {
+	function HypeSymbolLoad (hypeDocument, element, event) {
 		// check if there is a function with the same name as symbolName and run it
+		var sceneElm = document.getElementById(hypeDocument.currentSceneId());
 		var symbolInstance = hypeDocument.getSymbolInstanceById(element.id);
-		if (typeof hypeDocument.functions()[symbolInstance.symbolName()] == 'function'){
-			hypeDocument.functions()[symbolInstance.symbolName()](hypeDocument, element, event)
+		var symbolName = symbolInstance.symbolName();
+		if (typeof hypeDocument.functions()[symbolName] == 'function'){
+			hypeDocument.functions()[symbolName](hypeDocument, element, Object.assign({
+				proactiveEvent: true,
+			}, event));
 		}
+
+		// trigger actions by dataset key
+		hypeDocument.triggerActionsByAttribute('data-symbol-load-action', sceneElm, {
+			event: event
+		});
+
+		// trigger actions by dataset key, make behavior name compatible with dataset naming (lowercase, spaces to dash)
+		var symbolNameSanitized = sanitizeNameForDataset(symbolName);
+		hypeDocument.triggerActionsByAttribute('data-symbol-load-'+symbolNameSanitized+'-action', sceneElm, {
+			event: event
+		});
+	}
+
+	function HypeSymbolUnload (hypeDocument, element, event) {
+		// check if there is a function with the same name as symbolName and run it
+		var sceneElm = document.getElementById(hypeDocument.currentSceneId());
+		var symbolInstance = hypeDocument.getSymbolInstanceById(element.id);
+		var symbolName = symbolInstance.symbolName();
+		if (typeof hypeDocument.functions()[symbolName] == 'function'){
+			hypeDocument.functions()[symbolName](hypeDocument, element, Object.assign({
+				proactiveEvent: true,
+			}, event));
+		}
+
+		// trigger actions by dataset key
+		hypeDocument.triggerActionsByAttribute('data-symbol-unload-action', sceneElm, {
+			event: event
+		});
+		
+		// trigger actions by dataset key, make behavior name compatible with dataset naming (lowercase, spaces to dash)
+		var symbolNameSanitized = sanitizeNameForDataset(symbolName);
+		hypeDocument.triggerActionsByAttribute('data-symbol-unload-'+symbolNameSanitized+'-action', sceneElm, {
+			event: event
+		});
+	}
+
+	function sanitizeNameForDataset(name){
+		return name.replaceAll(/[^a-zA-Z0-9\s]/g, '').replaceAll(/\s+/g, '-').toLowerCase();
 	}
 
 	function HypeTriggerCustomBehavior(hypeDocument, element, event) {
@@ -683,13 +750,30 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			var sceneElm = document.getElementById(hypeDocument.currentSceneId());
 
 			// trigger actions by dataset key
-			triggerActionByDataset(hypeDocument, sceneElm, event, 'data-behavior-action');
-
+			hypeDocument.triggerActionsByAttribute('data-behavior-action', sceneElm, {
+				event: event
+			});
 			// trigger actions by dataset key, make behavior name compatible with dataset naming (lowercase, spaces to dash)
-			var customBehaviorNameSanitized = event.customBehaviorName.replaceAll(/[^a-zA-Z0-9\s]/g, '').replaceAll(/\s+/g, '-').toLowerCase();
-			triggerActionByDataset(hypeDocument, sceneElm, event, 'data-behavior-'+customBehaviorNameSanitized+'-action');
-
+			var customBehaviorNameSanitized = sanitizeNameForDataset(event.customBehaviorName);
+			hypeDocument.triggerActionsByAttribute('data-behavior-'+customBehaviorNameSanitized+'-action', sceneElm, {
+				event: event
+			});
 		}
+	}
+
+	function HypeTimelineComplete(hypeDocument, element, event) {
+		
+		var sceneElm = document.getElementById(hypeDocument.currentSceneId());
+
+		// trigger actions by dataset key
+		hypeDocument.triggerActionsByAttribute('data-timeline-complete-action', sceneElm, {
+			event: event
+		});
+		// trigger actions by dataset key, make timeline name compatible with dataset naming (lowercase, spaces to dash)
+		var timelineNameSanitized = sanitizeNameForDataset(event.timelineName);
+		hypeDocument.triggerActionsByAttribute('data-behavior-'+timelineNameSanitized+'-action', sceneElm, {
+			event: event
+		});
 	}
 	
 	/* setup callbacks */
@@ -699,9 +783,10 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	window.HYPE_eventListeners.push({"type":"HypeScenePrepareForDisplay", "callback": HypeScenePrepareForDisplay});
 	window.HYPE_eventListeners.push({"type":"HypeSceneLoad", "callback": HypeSceneLoad});
 	window.HYPE_eventListeners.push({"type":"HypeSceneUnload", "callback": HypeSceneUnload});
-	window.HYPE_eventListeners.push({"type":"HypeSymbolLoad", "callback": ForwardSymbolEvent});
-	window.HYPE_eventListeners.push({"type":"HypeSymbolUnload", "callback": ForwardSymbolEvent});
+	window.HYPE_eventListeners.push({"type":"HypeSymbolLoad", "callback": HypeSymbolLoad});
+	window.HYPE_eventListeners.push({"type":"HypeSymbolUnload", "callback": HypeSymbolUnload});
 	window.HYPE_eventListeners.push({"type":"HypeTriggerCustomBehavior", "callback":HypeTriggerCustomBehavior});
+	window.HYPE_eventListeners.push({"type":"HypeTimelineComplete", "callback":HypeTimelineComplete});
 		
 	/**
 	 * @typedef {Object} HypeActionEvents
@@ -710,7 +795,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.6',
+		version: '1.0.7',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
