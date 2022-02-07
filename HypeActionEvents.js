@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.7
+Hype Action Events 1.0.8
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -15,6 +15,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.5 Fixed typo that prevented collision events to be detected
 * 1.0.6 Added hypeDocument, element and event to the triggerAction context, added data-behavior-action
 * 1.0.7 Added data-timeline-complete-action, hypeDocument.triggerActionsByAttribute and minor refactoring
+* 1.0.8 Bugfix on data-timeline-complete-action for particular timelines
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -771,7 +772,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		});
 		// trigger actions by dataset key, make timeline name compatible with dataset naming (lowercase, spaces to dash)
 		var timelineNameSanitized = sanitizeNameForDataset(event.timelineName);
-		hypeDocument.triggerActionsByAttribute('data-behavior-'+timelineNameSanitized+'-action', sceneElm, {
+		hypeDocument.triggerActionsByAttribute('data-timeline-complete-'+timelineNameSanitized+'-action', sceneElm, {
 			event: event
 		});
 	}
@@ -795,7 +796,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.7',
+		version: '1.0.8',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
