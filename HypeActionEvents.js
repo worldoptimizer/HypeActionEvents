@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.8
+Hype Action Events 1.0.9
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -15,7 +15,10 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.5 Fixed typo that prevented collision events to be detected
 * 1.0.6 Added hypeDocument, element and event to the triggerAction context, added data-behavior-action
 * 1.0.7 Added data-timeline-complete-action, hypeDocument.triggerActionsByAttribute and minor refactoring
-* 1.0.8 Bugfix on data-timeline-complete-action for particular timelines
+* 1.0.9 Bugfix on data-timeline-complete-action for particular timelines
+* 1.0.9 Removed blur and focus and added focusin and focusout instead, moved contextmenu, keydown, keypress, keyup 
+		and submit events to non passive allowing event.preventDefault(), higher execution order on Hype functions
+
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -32,7 +35,40 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	}
 
 	var _nonPassiveDOMEvents = [
-		'drag', 'dragstart', 'dragend', 'dragover', 'dragenter', 'dragleave', 'drop',
+		// dragging
+		'drag', 'dragstart', 'dragend', 'dragover', 'dragenter', 'dragleave', 'drop', 'contextmenu',
+
+		// keyboard events ( KeyboardEvent ): 
+		'keydown', 'keypress', 'keyup',
+
+		// form events: 
+		'submit',
+		
+	];
+
+	var _passiveDOMEvents = [
+
+		// mouse events ( MouseEvent ):
+		'mousedown', 'mouseup', 'click', 'dblclick', 'mouseover', 
+		'mousewheel', 'mouseout', 'mousemove',
+
+		// touch events ( TouchEvent ): 
+		'touchstart', 'touchmove', 'touchend', 'touchcancel',
+
+		// form events: 
+		'change', 'input', 'beforeinput',
+		'focusin', 'focusout',
+
+		// CSS animations
+		'animationstart', 'animationiteration', 'animationend', 'animationcancel',
+
+		// CSS transitions
+		'transitionstart', 'transitionrun', 'transitionend', 'transitioncancel',
+
+		// Pointer events
+		'pointerdown', 'pointerup', 'pointerover', 'pointerout',
+		'pointermove', 'pointerenter', 'pointerleave', 'pointercancel',
+
 	];
 
 	var _functionSignature = [
@@ -56,32 +92,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		],
 
 		// DOM events that are enabled when the Hype Document loads
-		DOMEvents: [
-			// mouse events ( MouseEvent ):
-			'mousedown', 'mouseup', 'click', 'dblclick', 'mouseover', 
-			'mousewheel', 'mouseout', 'contextmenu', 'mousemove',
+		DOMEvents: []
+			// concat passive Events (they can run indepenndent and not render blocking)
+			.concat(_passiveDOMEvents)
 			
-			// touch events ( TouchEvent ): 
-			'touchstart', 'touchmove', 'touchend', 'touchcancel',
-			
-			// keyboard events ( KeyboardEvent ): 
-			'keydown', 'keypress', 'keyup',
-			
-			// form events: 
-			'focus', 'blur', 'change', 'submit', 'input', 'beforeinput',
-
-			// CSS animations
-			'animationstart', 'animationiteration', 'animationend', 'animationcancel',
-
-			// CSS transitions
-			'transitionstart', 'transitionrun', 'transitionend', 'transitioncancel',
-
-			// Pointer events
-			'pointerdown', 'pointerup', 'pointerover', 'pointerout',
-			'pointermove', 'pointerenter', 'pointerleave', 'pointercancel',
-
-			// concat nonpassive events
-		].concat(_nonPassiveDOMEvents),
+			// concat nonpassive events (non passive and mostly your able to prevent them)
+			.concat(_nonPassiveDOMEvents),
 
 		nonPassiveDOMEvents: _nonPassiveDOMEvents,
 
@@ -163,7 +179,8 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	function HypeDocumentLoad (hypeDocument, element, event) {
 		
 		// fetch Hype Document element for event listener
-		var hypeDocElm = document.getElementById(hypeDocument.documentId());
+		var hypeDocId = hypeDocument.documentId();
+		var hypeDocElm = document.getElementById(hypeDocId);
 
 		//prepare lookup based on document id
 		_lookup[hypeDocument.documentId()] = {
@@ -188,9 +205,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		/* setup firing of user interaction events based on bubbling to Hype Document root */
 		getDefault('DOMEvents').forEach(function(DOMEvent){
 			hypeDocElm.addEventListener(DOMEvent, function(event){
-				var element = event.target;
 				var type = event.type;
-
+				var element = event.target.closest('#'+hypeDocId+' [data-'+type+'-action]');
+	
 				if(element && type){
 					var code = element.getAttribute('data-'+type+'-action');
 					if (code) hypeDocument.triggerAction (code, {
@@ -234,6 +251,8 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 			var $context;
 			var strictMode = options.strictMode || getDefault('StrictMode');
+			
+			var _hypeFunctions = hypeDocument.functions()
 
 			// unless we are in strict mode prepare context
 			if (!strictMode) {
@@ -250,12 +269,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			
 				if (getDefault('LegacyMode')) {
 					// Hype Functions bound to current element and event in context
-					var boundHypeFunctions = {};
-					var fnc = hypeDocument.functions();
-					Object.keys(fnc).forEach(function(name){
-						boundHypeFunctions[name] = fnc[name].bind(hypeDocument, hypeDocument,  options.element, options.event);
+					var _boundHypeFunctions = {};
+					//var fnc = hypeDocument.functions();
+					Object.keys(_hypeFunctions).forEach(function(name){
+						_boundHypeFunctions[name] = _hypeFunctions[name].bind(hypeDocument, hypeDocument,  options.element, options.event);
 					});
-					$context = Object.assign($context, boundHypeFunctions);
+					$context = Object.assign($context, _boundHypeFunctions);
 
 				} else {
 					
@@ -275,7 +294,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						get(target, key, receiver) {
 							
 							// check if there is a user function and bind it to current hypeDocument, element and event
-							var fnc = Reflect.get(hypeDocument.functions(), key);
+							var fnc = Reflect.get(_hypeFunctions, key);
 							if (fnc) return fnc.bind(hypeDocument, hypeDocument,  options.element, options.event);
 							
 							// fetch key from target and return it if found
@@ -291,9 +310,12 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 							// check if key should walk up the proto chain (hence, break out of proxy), used for arguments in the function signature
 							if (_functionSignature.indexOf(key) !== -1) return false;
 
+							// check if there is a user defined hype function and prevail over globals
+							if (Reflect.get(_hypeFunctions, key)) return true;
+
 							// check if key doesn't exist on target or in window
 							if (!target.hasOwnProperty(key) && !window[key]) { //alternative: && !Reflect.get(window, key, receiver)) {
-								// proclaim it exists in target (needed for with {})
+								// proclaim it exists in target, needed for with-statement
 								return true;
 							}
 
@@ -408,6 +430,11 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		var hypeDocId = hypeDocument.documentId();
 		var hypeDocElm = document.getElementById(hypeDocId);
 
+		// trigger actions by dataset key
+		hypeDocument.triggerActionsByAttribute('data-scene-load-action', element, {
+			event: event
+		});
+
 		// Register Event listener for Matter if mounted
 		if ('Matter' in window != false && getDefault('MatterEvents') && getDefault('MatterEvents').length) {
 
@@ -419,11 +446,6 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			registerMatterCollisionEvent(hypeDocument, element, event, engine, 'collisionActive', 'collision-active');
 			registerMatterCollisionEvent(hypeDocument, element, event, engine, 'collisionEnd', 'collision-end');
 		}
-
-		// trigger actions by dataset key
-		hypeDocument.triggerActionsByAttribute('data-scene-load-action', element, {
-			event: event
-		});
 
 		// Start resize observer
 		sceneElm.querySelectorAll('[data-resize-action]').forEach(function(elm){
@@ -621,13 +643,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	function HypeSceneUnload (hypeDocument, element, event) {
 		var hypeDocId = hypeDocument.documentId();
 
-		// Fire events on unload actions
-		element.querySelectorAll('[data-scene-unload-action]').forEach(function(elm){
-			var code = elm.getAttribute('data-scene-unload-action');
-			if (code) hypeDocument.triggerAction (code, {
-				element: elm,
-				event:  event
-			});
+		// trigger actions by dataset key
+		hypeDocument.triggerActionsByAttribute('data-scene-unload-action', element, {
+			event: event
 		});
 
 		// Stop resize observer registered to this document id
@@ -796,7 +814,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.8',
+		version: '1.0.9',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
