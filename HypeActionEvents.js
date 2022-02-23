@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.0.9
+Hype Action Events 1.1.0
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -15,9 +15,10 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.5 Fixed typo that prevented collision events to be detected
 * 1.0.6 Added hypeDocument, element and event to the triggerAction context, added data-behavior-action
 * 1.0.7 Added data-timeline-complete-action, hypeDocument.triggerActionsByAttribute and minor refactoring
-* 1.0.9 Bugfix on data-timeline-complete-action for particular timelines
+* 1.0.8 Bugfix on data-timeline-complete-action for particular timelines
 * 1.0.9 Removed blur and focus and added focusin and focusout instead, moved contextmenu, keydown, keypress, keyup 
 		and submit events to non passive allowing event.preventDefault(), higher execution order on Hype functions
+* 1.1.0 Added hypeDocument.querySelector and hypeDocument.querySelectorAll, minor fixes
 
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
@@ -379,6 +380,16 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			});
 		}
 
+		hypeDocument.querySelector = function(selector){
+			var sceneElm = document.getElementById(hypeDocument.currentSceneId())
+			return sceneElm.querySelector(selector);
+		}
+		
+		hypeDocument.querySelectorAll = function(selector){	
+			var sceneElm = document.getElementById(hypeDocument.currentSceneId())
+			return sceneElm.querySelectorAll(selector);
+		}
+
 		// fire HypeActionEvents on HypeDocumentLoad
 		if (typeof hypeDocument.functions().HypeActionEvents == 'function'){
 			hypeDocument.functions().HypeActionEvents(hypeDocument, element, event);
@@ -492,9 +503,16 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 							});
 						}
 
+						// fix missing rootBounds bug (like in iFrames)
+						if (entry.rootBounds == null) entry.rootBounds = { top: 0, bottom: window.innerHeight }
+
+						var inViewport = entry.boundingClientRect.top <= entry.rootBounds.bottom && entry.boundingClientRect.bottom > entry.rootBounds.top
+						var isAbove = entry.boundingClientRect.top < entry.rootBounds.top
+						var isBelow = entry.boundingClientRect.bottom > entry.rootBounds.bottom + 1
+
 						hypeDocument.triggerAction (code, {
 							element: elm,
-							event:  {
+							event: {
 								type: 'IntersectionObserver',
 								entry: entry,
 								index: index,
@@ -502,8 +520,10 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 								observer: observer,
 								closestThreshold: closestThreshold,
 								closestThresholdPercent: closestThreshold * 100,
-								isAbove: entry.boundingClientRect.y < entry.rootBounds.y,
-							} 
+								inViewport: inViewport,
+								isAbove: isAbove,
+								isBelow: isBelow,	
+							}
 						});
 					});
 					
@@ -814,7 +834,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.0.9',
+		version: '1.1.0',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
