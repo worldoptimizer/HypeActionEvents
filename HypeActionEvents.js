@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.1.0
+Hype Action Events 1.1.1
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -19,7 +19,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.9 Removed blur and focus and added focusin and focusout instead, moved contextmenu, keydown, keypress, keyup 
 		and submit events to non passive allowing event.preventDefault(), higher execution order on Hype functions
 * 1.1.0 Added hypeDocument.querySelector and hypeDocument.querySelectorAll, minor fixes
-
+* 1.1.1 Added compability for Hype Global Behavior
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -779,6 +779,9 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 		// if a custom behavior seems like JavaScript function fire it as an action
 		var code = event.customBehaviorName;
 		if (/[;=()]/.test(code)) {
+			// if it seems to be an Hype Global Behavior abort
+			if (code.charAt(0) == '#') return;
+		
 			hypeDocument.triggerAction (code, {
 				element: element,
 				event: event
@@ -834,7 +837,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.1.0',
+		version: '1.1.1',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
