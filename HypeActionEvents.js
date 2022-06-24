@@ -19,7 +19,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.9 Removed blur and focus and added focusin and focusout instead, moved contextmenu, keydown, keypress, keyup 
 		and submit events to non passive allowing event.preventDefault(), higher execution order on Hype functions
 * 1.1.0 Added hypeDocument.querySelector and hypeDocument.querySelectorAll, minor fixes
-* 1.1.1 Added compability for Hype Global Behavior
+* 1.1.1 Added compatibility for Hype Global Behavior
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
