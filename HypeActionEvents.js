@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.1.1
+Hype Action Events 1.1.2
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -8,9 +8,9 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0.0	Initial release under MIT-license
 * 1.0.1 Proxy is default (LegacyMode available), firing HypeActionEvents on HypeDocumentLoad and refactored variables
 * 1.0.2 Prioritize user functions over functions in hypeDocument, added events on data-scene-load-action,
-        data-scene-unload-action, data-scene-prepare-action and data-layout-request-action
+		data-scene-unload-action, data-scene-prepare-action and data-layout-request-action
 * 1.0.3 Added event functions for ResizeObserver, IntersectionObserver and MutationObserver, 
-        changed to passive DOM events, added requestAnimationFrame events, added window and document events
+		changed to passive DOM events, added requestAnimationFrame events, added window and document events
 * 1.0.4 Added the event.symbolInstance to Hype function calls if present
 * 1.0.5 Fixed typo that prevented collision events to be detected
 * 1.0.6 Added hypeDocument, element and event to the triggerAction context, added data-behavior-action
@@ -20,6 +20,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 		and submit events to non passive allowing event.preventDefault(), higher execution order on Hype functions
 * 1.1.0 Added hypeDocument.querySelector and hypeDocument.querySelectorAll, minor fixes
 * 1.1.1 Added compatibility for Hype Global Behavior
+* 1.1.2 Added a new scope option to triggerAction
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -247,7 +248,8 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 			options = Object.assign({
 				symbolInstance: hypeDocument.getSymbolInstance(options.element),
 				element: document.getElementById(hypeDocument.currentSceneId()),
-				event: {}
+				event: {},
+				scope: hypeDocument.customData
 			}, options);
 
 			var $context;
@@ -286,7 +288,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 							// test if key exists on target
 							if (!Reflect.get(target, key, receiver)) {
 								// key doesn't exist, assume its a variable in customData we are setting
-								return Reflect.set(hypeDocument.customData, key, val)
+								return Reflect.set(options.scope, key, val)
 							}
 							// else follow regular behavior
 							return Reflect.set(target, key, val, receiver)
@@ -303,7 +305,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 							if (value) return value;
 							
 							// we don't have a value, assume user wants customData
-							return Reflect.get(hypeDocument.customData, key)
+							return Reflect.get(options.scope, key)
 						},
 
 						has(target, key, receiver) {
@@ -837,7 +839,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.1.1',
+		version: '1.1.2',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
