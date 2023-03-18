@@ -65,7 +65,7 @@ A: Hype Action Events extension is compatible with modern browsers that support 
 | `data-symbol-unload-action` | Triggers actions on Hype symbol unload |
 | `data-behavior-action` | Triggers actions based on a custom behavior |
 | `data-timeline-complete-action` | Triggers actions on Hype timeline complete |
-| `data-timeline-[Timeline Name sanitized]-complete-action` | Triggers actions on Hype timeline complete for specific timeline |
+| `data-timeline-[TimelineNameSanitized]-complete-action` | Triggers actions on Hype timeline complete for specific timeline |
 | `data-resize-action` | Triggers actions on element resize |
 | `data-intersection-action` | Triggers actions on element intersection |
 | `data-mutation-action` | Triggers actions on element mutation |
