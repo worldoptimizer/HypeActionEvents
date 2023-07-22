@@ -1,6 +1,6 @@
 /*!
-Hype Action Events 1.1.2
-copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
+Hype Action Events 1.1.3
+copyright (c) 2023 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
@@ -21,6 +21,7 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.1.0 Added hypeDocument.querySelector and hypeDocument.querySelectorAll, minor fixes
 * 1.1.1 Added compatibility for Hype Global Behavior
 * 1.1.2 Added a new scope option to triggerAction
+* 1.1.3 Changed HypeLayoutRequest to unshift on window.HYPE_eventListeners to avoid notifyEvent bug if stacked
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -823,7 +824,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	/* setup callbacks */
 	if("HYPE_eventListeners" in window === false) { window.HYPE_eventListeners = Array();}
 	window.HYPE_eventListeners.push({"type":"HypeDocumentLoad", "callback": HypeDocumentLoad});
-	window.HYPE_eventListeners.push({"type":"HypeLayoutRequest", "callback": HypeLayoutRequest});
+	window.HYPE_eventListeners.unshift({"type":"HypeLayoutRequest", "callback": HypeLayoutRequest});
 	window.HYPE_eventListeners.push({"type":"HypeScenePrepareForDisplay", "callback": HypeScenePrepareForDisplay});
 	window.HYPE_eventListeners.push({"type":"HypeSceneLoad", "callback": HypeSceneLoad});
 	window.HYPE_eventListeners.push({"type":"HypeSceneUnload", "callback": HypeSceneUnload});
@@ -839,7 +840,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.1.2',
+		version: '1.1.3',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
