@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.1.3
+Hype Action Events 1.1.4
 copyright (c) 2023 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -22,6 +22,7 @@ copyright (c) 2023 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.1.1 Added compatibility for Hype Global Behavior
 * 1.1.2 Added a new scope option to triggerAction
 * 1.1.3 Changed HypeLayoutRequest to unshift on window.HYPE_eventListeners to avoid notifyEvent bug if stacked
+* 1.1.4 Added test to make sure trigger hypeDocument.triggerActionsByAttribute is available in HypeLayoutRequest
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -723,7 +724,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 
 	function HypeLayoutRequest (hypeDocument, element, event) {
 		// trigger actions by dataset key
-		hypeDocument.triggerActionsByAttribute('data-layout-request-action', element, {
+		if (hypeDocument.triggerActionsByAttribute) hypeDocument.triggerActionsByAttribute('data-layout-request-action', element, {
 			event: event
 		});
 	}
@@ -840,7 +841,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.1.3',
+		version: '1.1.4',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
