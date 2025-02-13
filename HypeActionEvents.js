@@ -1,6 +1,6 @@
 /*!
 Hype Action Events 1.1.5
-copyright (c) 2024 Max Ziebell, (https://maxziebell.de). MIT-license
+copyright (c) 2025 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
