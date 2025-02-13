@@ -1,5 +1,5 @@
 /*!
-Hype Action Events 1.1.4
+Hype Action Events 1.1.5
 copyright (c) 2024 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -23,6 +23,7 @@ copyright (c) 2024 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.1.2 Added a new scope option to triggerAction
 * 1.1.3 Changed HypeLayoutRequest to unshift on window.HYPE_eventListeners to avoid notifyEvent bug if stacked
 * 1.1.4 Added test to make sure trigger hypeDocument.triggerActionsByAttribute is available in HypeLayoutRequest
+* 1.1.5 Fixed missing rootBounds bug by making it local for proper fallback handling in IntersectionObserver.
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
@@ -508,26 +509,26 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 						}
 
 						// fix missing rootBounds bug (like in iFrames)
-						if (entry.rootBounds == null) entry.rootBounds = { top: 0, bottom: window.innerHeight }
-
-						var inViewport = entry.boundingClientRect.top <= entry.rootBounds.bottom && entry.boundingClientRect.bottom > entry.rootBounds.top
-						var isAbove = entry.boundingClientRect.top < entry.rootBounds.top
-						var isBelow = entry.boundingClientRect.bottom > entry.rootBounds.bottom + 1
-
-						hypeDocument.triggerAction (code, {
-							element: elm,
-							event: {
-								type: 'IntersectionObserver',
-								entry: entry,
-								index: index,
-								entries: entries,
-								observer: observer,
-								closestThreshold: closestThreshold,
-								closestThresholdPercent: closestThreshold * 100,
-								inViewport: inViewport,
-								isAbove: isAbove,
-								isBelow: isBelow,	
-							}
+						var localRootBounds = entry.rootBounds || { top: 0, bottom: window.innerHeight || 0 };
+						
+						var inViewport = entry.boundingClientRect.top <= localRootBounds.bottom && entry.boundingClientRect.bottom > localRootBounds.top;
+						var isAbove = entry.boundingClientRect.top < localRootBounds.top;
+						var isBelow = entry.boundingClientRect.bottom > localRootBounds.bottom + 1;
+						
+						hypeDocument.triggerAction(code, {
+						    element: elm,
+						    event: {
+						        type: 'IntersectionObserver',
+						        entry: entry,
+						        index: index,
+						        entries: entries,
+						        observer: observer,
+						        closestThreshold: closestThreshold,
+						        closestThresholdPercent: closestThreshold * 100,
+						        inViewport: inViewport,
+						        isAbove: isAbove,
+						        isBelow: isBelow,
+						    }
 						});
 					});
 					
@@ -841,7 +842,7 @@ if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (functio
 	 * @property {Function} setDefault Set a default value used in this extension
 	 */
 	 var HypeActionEvents = {
-		version: '1.1.4',
+		version: '1.1.5',
 		getDefault: getDefault,
 		setDefault: setDefault,
 	};
