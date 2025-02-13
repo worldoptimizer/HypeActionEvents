@@ -23,7 +23,7 @@ copyright (c) 2025 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.1.2 Added a new scope option to triggerAction
 * 1.1.3 Changed HypeLayoutRequest to unshift on window.HYPE_eventListeners to avoid notifyEvent bug if stacked
 * 1.1.4 Added test to make sure trigger hypeDocument.triggerActionsByAttribute is available in HypeLayoutRequest
-* 1.1.5 Fixed missing rootBounds bug by making it local for proper fallback handling in IntersectionObserver.
+* 1.1.5 Fixed missing rootBounds bug by making it local for proper fallback handling in IntersectionObserver
 */
 if("HypeActionEvents" in window === false) window['HypeActionEvents'] = (function () {
 
